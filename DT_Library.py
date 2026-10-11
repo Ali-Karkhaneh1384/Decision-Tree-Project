@@ -6,29 +6,38 @@
         Leaf node:     value (predicted class) is set, children are None.
     """
     def __init__(
-        self,
-        feature_index=None,
-        threshold=None,
-        left=None,
-        right=None,
-        value=None,
-        samples=0,
-        impurity=0.0,
-        class_counts=None,
-    ):
-        """
-        Constructor for Node class
-        with the attributes and hyperparameters.
-        """
-        raise  NotImplementedError
-
+            self,
+            feature_index=None,
+            threshold=None,
+            left=None,
+            right=None,
+            value=None,
+            samples=0,
+            impurity=0.0,
+            class_counts=None,
+        ):
+            """
+            Constructor for Node class
+            with the attributes and hyperparameters.
+            """
+            self.feature_index = feature_index
+            self.threshold = threshold
+            self.left = left
+            self.right = right
+            self.value = value
+            self.samples = samples
+            self.impurity = impurity
+            self.class_counts = class_counts
+    
     def is_leaf(self):
         """
         Check whether this node is a leaf node.
         Return True if the node has no children; otherwise, return False.
         """
-        # TODO
-        pass
+        if self.left == None and self.right == None:
+            return True
+                
+        return False
 
 
 class DecisionTree:
