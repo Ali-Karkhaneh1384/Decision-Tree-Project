@@ -53,12 +53,12 @@ class DecisionTree:
     ):
         # Hyperparameters
         # criterion_type ="gini or entropy"
-        # self.criterion = criterion
-        # self.max_depth = max_depth
-        # self.min_samples_split = min_samples_split
-        # self.min_samples_leaf = min_samples_leaf
-        # self.max_features = max_features
-        #self.random_state = random_state
+        self.criterion = criterion
+        self.max_depth = max_depth
+        self.min_samples_split = min_samples_split
+        self.min_samples_leaf = min_samples_leaf
+        self.max_features = max_features
+        self.random_state = random_state
         #
         # # Learned attributes
         # self.root_ = None
@@ -69,8 +69,6 @@ class DecisionTree:
         # self.depth_ = None
         # self.feature_importances_ = None  
 
-        # TODO
-        pass
 
     # =========================
     # Training
