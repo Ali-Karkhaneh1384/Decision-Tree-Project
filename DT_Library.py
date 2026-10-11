@@ -1,4 +1,6 @@
-﻿class Node:
+﻿import numpy as np
+
+class Node:
     """
         Represents a node of the decision tree.
     
@@ -96,7 +98,31 @@ class DecisionTree:
             A float representing the weighted entropy of the two child nodes.
         """
         # TODO
-        pass
+        Total_samples = len(y_left) + len(y_right)
+        
+        if Total_samples == 0:
+            return 0.0
+        
+        result = 0.0
+        
+        for y_child in [y_left, y_right]:
+            n = len(y_child)
+            if n == 0:
+                continue
+            
+            entropy = 0.0
+    
+        
+    
+            for value in np.unique(y_child):
+               p = np.sum(y_child == value) / n
+               entropy -= p * np.log2(p)
+    
+            result += (n / Total_samples) * entropy
+    
+        return result
+        
+        
 
     def _weighted_gini(self, y_left, y_right):
         """
@@ -120,7 +146,34 @@ class DecisionTree:
             A float representing the weighted Gini impurity of the two child nodes.
         """
         # TODO
-        pass
+        Total_samples = len(y_right) + len(y_left)
+        
+        if Total_samples == 0:
+            return 0.0
+        
+        result = 0.0
+        
+        for y_child in [y_left , y_right]:
+            n = len(y_child)
+            if n == 0:
+                continue
+            
+            
+            sumOfPowers = 0.0
+            for value in np.unique(y_child):
+                p = np.sum(y_child == value) / n
+                sumOfPowers += (p * p)
+                
+                
+            gini = 1 - sumOfPowers    
+            result += (n / Total_samples) * gini
+            
+            
+        return result    
+            
+            
+            
+            
     def _entropy(self, y):
         """
         Calculate the entropy of the given target labels.
