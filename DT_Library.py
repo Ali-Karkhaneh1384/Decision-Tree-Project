@@ -62,14 +62,14 @@ class DecisionTree:
         self.max_features = max_features
         self.random_state = random_state
         #
-        # # Learned attributes
-        # self.root_ = None
-        # self.n_features_ = None
-        # self.n_classes_ = None
-        # self.classes_ = None
-        # self.n_nodes_ = None
-        # self.depth_ = None
-        # self.feature_importances_ = None  
+        # Learned attributes
+        self.root_ = None
+        self.n_features_ = None
+        self.n_classes_ = None
+        self.classes_ = None
+        self.n_nodes_ = None
+        self.depth_ = None
+        self.feature_importances_ = None  
 
 
     # =========================
@@ -193,8 +193,25 @@ class DecisionTree:
             A float representing the entropy of y.
         """
         # TODO
-        pass
-
+        
+        
+        
+        n = len(y)
+        if n == 0:
+            return 0.0
+            
+        
+        entropy = 0.0
+    
+        
+    
+        for value in np.unique(y):
+           p = np.sum(y == value) / n
+           entropy -= p * np.log2(p)
+    
+        
+    
+        return entropy
     def _gini(self, y):
         """
         Calculate the Gini impurity of the given target labels.
@@ -214,7 +231,22 @@ class DecisionTree:
             A float representing the Gini impurity of y.
         """
         # TODO
-        pass
+        n = len(y)
+        if n == 0:
+            return 0.0
+        
+        
+        sumOfPowers = 0.0
+        for value in np.unique(y):
+            p = np.sum(y == value) / n
+            sumOfPowers += (p * p)
+            
+            
+        gini = 1 - sumOfPowers    
+        
+            
+            
+        return gini 
 
     def _information_gain(self, y, y_left, y_right):
         """
@@ -239,7 +271,10 @@ class DecisionTree:
             A float representing the information gain of the split.
         """
         # TODO
-        pass
+        Parent_gini = self._gini(y)
+        Weighted_gini = self._weighted_gini(y_left , y_right)
+        Information_gain = Parent_gini - Weighted_gini
+        return Information_gain
 
     def fit(self, X, y):
         """
@@ -277,7 +312,14 @@ class DecisionTree:
             inside _build_tree().
         """
         # TODO
-        pass
+        self.n_features_= X.shape[1]
+        self.classes_ = np.unique(y)
+        self.n_classes_ = len(self.classes_)   
+        self.root_ = self._build_tree(X, y, depth=0)
+    
+        return self
+
+
 
     def _build_tree(self, X, y, depth):
         """
@@ -334,21 +376,125 @@ class DecisionTree:
         # 1. Check whether this node should become a leaf.
         # TODO: implement
 
+        n_samples = len(y)
+
+        if self.criterion == "gini":
+            impurity = self._gini(y)
+        elif self.criterion == "entropy":
+            impurity = self._entropy(y)
+
+        values, counts = np.unique(y, return_counts=True)
+        majority_class = values[np.argmax(counts)]
+
+        class_counts = {}
+
+        for i in range(len(values)):
+            class_counts[values[i]] = counts[i]
+
+        
+        if (
+            impurity == 0
+            or (self.max_depth is not None and depth >= self.max_depth)
+            or n_samples < self.min_samples_split
+        ):
+            return Node(
+                value=majority_class,
+                samples=n_samples,
+                impurity=impurity,
+                class_counts=class_counts
+            )
+
         # 2. Find the best feature and threshold.
         # TODO: implement
+
+        best_gain = -1.0
+        best_feature = None
+        best_threshold = None
+
+        for feature_index in range(self.n_features_):
+
+            feature_values = np.unique(X[:, feature_index])
+
+            if len(feature_values) < 2:
+                continue
+
+            thresholds = []
+
+            for i in range(len(feature_values) - 1):
+                threshold = (feature_values[i] + feature_values[i + 1]) / 2
+                thresholds.append(threshold)
+
+
+            for threshold in thresholds:
+
+                left_mask = X[:, feature_index] <= threshold
+                right_mask = X[:, feature_index] > threshold
+
+                y_left = y[left_mask]
+                y_right = y[right_mask]
+
+            
+                if (
+                    len(y_left) < self.min_samples_leaf
+                    or len(y_right) < self.min_samples_leaf
+                ):
+                    continue
+
+                gain = self._information_gain(
+                    y, y_left, y_right
+                )
+
+                if gain > best_gain:
+                    best_gain = gain
+                    best_feature = feature_index
+                    best_threshold = threshold
+
+    
+        if best_feature is None or best_gain <= 0:
+            return Node(
+                value=majority_class,
+                samples=n_samples,
+                impurity=impurity,
+                class_counts=class_counts
+            )
 
         # 3. Split the dataset using the selected feature and threshold.
         # TODO: implement
 
+        left_mask = X[:, best_feature] <= best_threshold
+        right_mask = X[:,best_feature] > best_threshold
+
+        X_left = X[left_mask]
+        y_left = y[left_mask]
+
+        X_right = X[right_mask]
+        y_right = y[right_mask]
+
         # 4. Build the left subtree.
         # left = self._build_tree(X_left, y_left, depth + 1)
+        left = self._build_tree(X_left, y_left, depth + 1)
+
 
         # 5. Build the right subtree.
         # right = self._build_tree(X_right, y_right, depth + 1)
+        right = self._build_tree(X_right, y_right, depth + 1)
 
         # 6. Create the current internal node.
         # TODO: implement
-        pass
+
+        node = Node(
+            feature_index=best_feature,
+            threshold=best_threshold,
+            left=left,
+            right=right,
+            value=None,
+            samples=n_samples,
+            impurity=impurity,
+            class_counts=class_counts
+        )
+
+        return node
+
 
     def _find_best_split(self, X, y):
         """
