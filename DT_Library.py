@@ -316,7 +316,55 @@ class DecisionTree:
         self.classes_ = np.unique(y)
         self.n_classes_ = len(self.classes_)   
         self.root_ = self._build_tree(X, y, depth=0)
-    
+        self.n_nodes_ = 0
+        self.depth_ = 0
+        self.feature_importances_ = np.zeros(self.n_features_)
+
+        stack = [(self.root_, 0)]
+        while stack:
+            node, depth = stack.pop()
+
+            if node is None:
+                continue
+
+            self.n_nodes_ += 1
+
+            if depth > self.depth_:
+                self.depth_ = depth
+
+            if not node.is_leaf():
+                stack.append((node.left, depth + 1))
+                stack.append((node.right, depth + 1))
+       
+        stack = [(self.root_, X, y)]
+        while stack:
+            node, X_node, y_node = stack.pop()
+        
+            if node is None or node.is_leaf():
+                continue
+        
+            feature_index = node.feature_index
+            threshold = node.threshold
+        
+            X_left, y_left, X_right, y_right = self._split(
+                X_node, y_node, feature_index, threshold
+            )
+        
+            gain = self._calculate_information_gain(
+                y_node, y_left, y_right
+            )
+        
+            self.feature_importances_[feature_index] += len(y_node) * gain
+        
+            stack.append((node.left, X_left, y_left))
+            stack.append((node.right, X_right, y_right))
+        
+        total = self.feature_importances_.sum()
+        
+        if total > 0:
+            self.feature_importances_ /= total
+                
+        
         return self
 
 
@@ -376,121 +424,36 @@ class DecisionTree:
         # 1. Check whether this node should become a leaf.
         # TODO: implement
 
-        n_samples = len(y)
-
-        if self.criterion == "gini":
-            impurity = self._gini(y)
-        elif self.criterion == "entropy":
-            impurity = self._entropy(y)
-
-        values, counts = np.unique(y, return_counts=True)
-        majority_class = values[np.argmax(counts)]
-
-        class_counts = {}
-
-        for i in range(len(values)):
-            class_counts[values[i]] = counts[i]
-
-        
-        if (
-            impurity == 0
-            or (self.max_depth is not None and depth >= self.max_depth)
-            or n_samples < self.min_samples_split
-        ):
-            return Node(
-                value=majority_class,
-                samples=n_samples,
-                impurity=impurity,
-                class_counts=class_counts
-            )
-
+        if self._is_stopping_condition(X, y, depth):
+            return self._create_leaf(y)
         # 2. Find the best feature and threshold.
         # TODO: implement
 
-        best_gain = -1.0
-        best_feature = None
-        best_threshold = None
-
-        for feature_index in range(self.n_features_):
-
-            feature_values = np.unique(X[:, feature_index])
-
-            if len(feature_values) < 2:
-                continue
-
-            thresholds = []
-
-            for i in range(len(feature_values) - 1):
-                threshold = (feature_values[i] + feature_values[i + 1]) / 2
-                thresholds.append(threshold)
-
-
-            for threshold in thresholds:
-
-                left_mask = X[:, feature_index] <= threshold
-                right_mask = X[:, feature_index] > threshold
-
-                y_left = y[left_mask]
-                y_right = y[right_mask]
-
-            
-                if (
-                    len(y_left) < self.min_samples_leaf
-                    or len(y_right) < self.min_samples_leaf
-                ):
-                    continue
-
-                gain = self._information_gain(
-                    y, y_left, y_right
-                )
-
-                if gain > best_gain:
-                    best_gain = gain
-                    best_feature = feature_index
-                    best_threshold = threshold
-
-    
-        if best_feature is None or best_gain <= 0:
-            return Node(
-                value=majority_class,
-                samples=n_samples,
-                impurity=impurity,
-                class_counts=class_counts
-            )
+        feature_index, threshold = self._find_best_split(X, y)
 
         # 3. Split the dataset using the selected feature and threshold.
         # TODO: implement
 
-        left_mask = X[:, best_feature] <= best_threshold
-        right_mask = X[:,best_feature] > best_threshold
-
-        X_left = X[left_mask]
-        y_left = y[left_mask]
-
-        X_right = X[right_mask]
-        y_right = y[right_mask]
+        X_left, y_left, X_right, y_right = self._split(
+        X, y, feature_index, threshold
+        )   
 
         # 4. Build the left subtree.
         # left = self._build_tree(X_left, y_left, depth + 1)
         left = self._build_tree(X_left, y_left, depth + 1)
 
 
-        # 5. Build the right subtree.
-        # right = self._build_tree(X_right, y_right, depth + 1)
+        # 5. Build right child
         right = self._build_tree(X_right, y_right, depth + 1)
 
         # 6. Create the current internal node.
         # TODO: implement
 
         node = Node(
-            feature_index=best_feature,
-            threshold=best_threshold,
-            left=left,
-            right=right,
-            value=None,
-            samples=n_samples,
-            impurity=impurity,
-            class_counts=class_counts
+        feature_index=feature_index,
+        threshold=threshold,
+        left=left,
+        right=right
         )
 
         return node
@@ -562,9 +525,52 @@ class DecisionTree:
             - A candidate split must not create invalid child nodes.
             - The method should consider the effect of min_samples_leaf.
         """
+        if self.n_features_ is None:
+            self.n_features_ = X.shape[1]
+        best_gain = -1.0
+        best_feature = None
+        best_threshold = None
 
-        # TODO
-        pass
+        for feature_index in range(self.n_features_):
+
+            feature_values = np.unique(X[:, feature_index])
+
+            if len(feature_values) < 2:
+                continue
+
+
+            thresholds = []
+            thresholds = self._get_candidate_thresholds(feature_values)
+
+            for threshold in thresholds:
+
+                left_mask = X[:, feature_index] <= threshold
+                right_mask = X[:, feature_index] > threshold
+
+                y_left = y[left_mask]
+                y_right = y[right_mask]
+
+            
+                if (
+                    len(y_left) < self.min_samples_leaf
+                    or len(y_right) < self.min_samples_leaf
+                ):
+                    continue
+
+                gain = self._information_gain(
+                    y, y_left, y_right
+                )
+
+                if gain > best_gain:
+                    best_gain = gain
+                    best_feature = feature_index
+                    best_threshold = threshold
+
+    
+        if best_feature is None:
+         return None
+
+        return best_feature, best_threshold
 
     def _split(self, X, y, feature_index, threshold):
         """
@@ -649,7 +655,17 @@ class DecisionTree:
         """
 
         # TODO
-        pass
+        
+        left_mask = X[:, feature_index] <= threshold
+        right_mask = X[:,feature_index] > threshold
+
+        X_left = X[left_mask]
+        y_left = y[left_mask]
+
+        X_right = X[right_mask]
+        y_right = y[right_mask]
+        
+        return X_left, y_left, X_right, y_right
 
     def _get_candidate_thresholds(self, feature_values):
         """
@@ -712,7 +728,17 @@ class DecisionTree:
         """
 
         # TODO
-        pass
+        
+        values = np.unique(feature_values)
+
+        thresholds = []
+
+       
+        for i in range(len(values) - 1):
+            threshold = (values[i] + values[i + 1]) / 2
+            thresholds.append(threshold)
+
+        return thresholds
 
     def _calculate_impurity(self, y):
         """
@@ -757,7 +783,12 @@ class DecisionTree:
         """
 
         # TODO
-        pass
+        
+        if self.criterion == "gini":
+            return self._gini(y)
+        elif self.criterion == "entropy":
+            return self._entropy(y)
+            
 
     def _calculate_information_gain(self, parent_y, left_y, right_y):
         """
@@ -828,7 +859,22 @@ class DecisionTree:
         """
 
         # TODO
-        pass
+        parent_impurity = self._calculate_impurity(parent_y)
+        left_impurity = self._calculate_impurity(left_y)
+        right_impurity = self._calculate_impurity(right_y)
+
+        n = len(parent_y)
+        left_weight = len(left_y) / n
+        right_weight = len(right_y) / n
+
+        weighted_child_impurity = (
+            left_weight * left_impurity
+            + right_weight * right_impurity
+        )
+
+        information_gain = parent_impurity - weighted_child_impurity
+
+        return information_gain
 
     def _is_stopping_condition(self, X, y, depth):
         """
@@ -852,7 +898,22 @@ class DecisionTree:
         """
 
         # TODO
-        pass
+        n_samples = len(y)
+
+        if self.criterion == "gini":
+            impurity = self._gini(y)
+        elif self.criterion == "entropy":
+            impurity = self._entropy(y)
+
+        
+        if (
+        impurity == 0
+        or (self.max_depth is not None and depth >= self.max_depth)
+        or n_samples < self.min_samples_split
+        ):
+             return True
+
+        return False
 
     def _create_leaf(self, y):
         """
@@ -871,7 +932,38 @@ class DecisionTree:
         """
 
         # TODO
-        pass
+    def _create_leaf(self, y):
+        
+        n_samples = len(y)
+    
+        if self.criterion == "gini":
+            impurity = self._gini(y)
+        elif self.criterion == "entropy":
+            impurity = self._entropy(y)
+    
+        values, counts = np.unique(y, return_counts=True)
+    
+        majority_class = values[0]
+        max_count = counts[0]
+    
+        for i in range(1, len(counts)):
+            if counts[i] > max_count:
+                max_count = counts[i]
+                majority_class = values[i]
+    
+        class_counts = {}
+    
+        for i in range(len(values)):
+            class_counts[values[i]] = counts[i]
+    
+        return Node(
+            value=majority_class,
+            samples=n_samples,
+            impurity=impurity,
+            class_counts=class_counts
+        )
+    
+    
     def _predict_one(self, x):
         """
         Predict the class of a single sample.
@@ -894,7 +986,15 @@ class DecisionTree:
         """
 
         # TODO
-        pass
+        node = self.root_
+        while(not node.is_leaf()):
+                if x[node.feature_index] <= node.threshold:
+                    node = node.left
+                else:
+                    node = node.right    
+        
+        return node.value           
+  
     def predict(self, X):
         """
         Predict the class of each sample in X.
@@ -913,4 +1013,11 @@ class DecisionTree:
         """
 
         # TODO
-        pass
+        if not hasattr(self, "root_") or self.root_ is None:
+            raise RuntimeError("DecisionTree must be fitted before predict.")
+
+        predictions = []
+        for value in X:
+           predictions.append(self._predict_one(value))
+        
+        return predictions
