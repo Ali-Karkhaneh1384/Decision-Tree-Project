@@ -657,13 +657,13 @@ class DecisionTree:
         # TODO
         
         left_mask = X[:, feature_index] <= threshold
-        right_mask = X[:,feature_index] > threshold
+        
 
         X_left = X[left_mask]
         y_left = y[left_mask]
 
-        X_right = X[right_mask]
-        y_right = y[right_mask]
+        X_right = X[~ left_mask]
+        y_right = y[~ left_mask]
         
         return X_left, y_left, X_right, y_right
 
