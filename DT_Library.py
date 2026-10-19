@@ -312,6 +312,9 @@ class DecisionTree:
             inside _build_tree().
         """
         # TODO
+        X = np.asarray(X, dtype=float)
+        y = np.asarray(y)
+        
         self.n_features_= X.shape[1]
         self.classes_ = np.unique(y)
         self.n_classes_ = len(self.classes_)   
@@ -421,41 +424,37 @@ class DecisionTree:
                 - min_samples_leaf
                 - criterion
         """
-        # 1. Check whether this node should become a leaf.
-        # TODO: implement
-
         if self._is_stopping_condition(X, y, depth):
             return self._create_leaf(y)
-        # 2. Find the best feature and threshold.
-        # TODO: implement
-
-        feature_index, threshold = self._find_best_split(X, y)
-
-        # 3. Split the dataset using the selected feature and threshold.
-        # TODO: implement
-
+        
+        # Find the best feature and threshold
+        best_split = self._find_best_split(X, y)
+        
+        # If no valid split is found, create a leaf
+        if best_split is None:
+            return self._create_leaf(y)
+        
+        feature_index, threshold = best_split
+        
+        # Split the dataset
         X_left, y_left, X_right, y_right = self._split(
-        X, y, feature_index, threshold
-        )   
-
-        # 4. Build the left subtree.
-        # left = self._build_tree(X_left, y_left, depth + 1)
-        left = self._build_tree(X_left, y_left, depth + 1)
-
-
-        # 5. Build right child
-        right = self._build_tree(X_right, y_right, depth + 1)
-
-        # 6. Create the current internal node.
-        # TODO: implement
-
-        node = Node(
-        feature_index=feature_index,
-        threshold=threshold,
-        left=left,
-        right=right
+            X, y, feature_index, threshold
         )
-
+        
+        # Build the left subtree
+        left = self._build_tree(X_left, y_left, depth + 1)
+        
+        # Build the right subtree
+        right = self._build_tree(X_right, y_right, depth + 1)
+        
+        # Create the internal node
+        node = Node(
+            feature_index=feature_index,
+            threshold=threshold,
+            left=left,
+            right=right
+        )
+        
         return node
 
 
@@ -525,6 +524,8 @@ class DecisionTree:
             - A candidate split must not create invalid child nodes.
             - The method should consider the effect of min_samples_leaf.
         """
+        X = np.asarray(X, dtype=float)
+        y = np.asarray(y)             
         if self.n_features_ is None:
             self.n_features_ = X.shape[1]
         best_gain = -1.0
@@ -655,6 +656,8 @@ class DecisionTree:
         """
 
         # TODO
+        X = np.asarray(X, dtype=float)
+        y = np.asarray(y)
         
         left_mask = X[:, feature_index] <= threshold
         
@@ -932,8 +935,6 @@ class DecisionTree:
         """
 
         # TODO
-    def _create_leaf(self, y):
-        
         n_samples = len(y)
     
         if self.criterion == "gini":
@@ -1016,6 +1017,7 @@ class DecisionTree:
         if not hasattr(self, "root_") or self.root_ is None:
             raise RuntimeError("DecisionTree must be fitted before predict.")
 
+        X = np.asarray(X, dtype=float)
         predictions = []
         for value in X:
            predictions.append(self._predict_one(value))
