@@ -271,10 +271,15 @@ class DecisionTree:
             A float representing the information gain of the split.
         """
         # TODO
-        Parent_gini = self._gini(y)
-        Weighted_gini = self._weighted_gini(y_left , y_right)
-        Information_gain = Parent_gini - Weighted_gini
-        return Information_gain
+        if self.criterion == "gini":
+            parent_impurity = self._gini(y)
+            weighted_impurity = self._weighted_gini(y_left, y_right)
+
+        elif self.criterion == "entropy":
+            parent_impurity = self._entropy(y)
+            weighted_impurity = self._weighted_entropy(y_left, y_right)
+        
+        return parent_impurity - weighted_impurity    
 
     def fit(self, X, y):
         """
@@ -319,54 +324,7 @@ class DecisionTree:
         self.classes_ = np.unique(y)
         self.n_classes_ = len(self.classes_)   
         self.root_ = self._build_tree(X, y, depth=0)
-        self.n_nodes_ = 0
-        self.depth_ = 0
-        self.feature_importances_ = np.zeros(self.n_features_)
-
-        stack = [(self.root_, 0)]
-        while stack:
-            node, depth = stack.pop()
-
-            if node is None:
-                continue
-
-            self.n_nodes_ += 1
-
-            if depth > self.depth_:
-                self.depth_ = depth
-
-            if not node.is_leaf():
-                stack.append((node.left, depth + 1))
-                stack.append((node.right, depth + 1))
-       
-        stack = [(self.root_, X, y)]
-        while stack:
-            node, X_node, y_node = stack.pop()
-        
-            if node is None or node.is_leaf():
-                continue
-        
-            feature_index = node.feature_index
-            threshold = node.threshold
-        
-            X_left, y_left, X_right, y_right = self._split(
-                X_node, y_node, feature_index, threshold
-            )
-        
-            gain = self._calculate_information_gain(
-                y_node, y_left, y_right
-            )
-        
-            self.feature_importances_[feature_index] += len(y_node) * gain
-        
-            stack.append((node.left, X_left, y_left))
-            stack.append((node.right, X_right, y_right))
-        
-        total = self.feature_importances_.sum()
-        
-        if total > 0:
-            self.feature_importances_ /= total
-                
+        self._compute_tree_stats()
         
         return self
 
@@ -447,12 +405,21 @@ class DecisionTree:
         # Build the right subtree
         right = self._build_tree(X_right, y_right, depth + 1)
         
+        
+        # Calculate majority class of current node
+        values, counts = np.unique(y, return_counts=True)
+        majority_class = values[np.argmax(counts)]
+       
+       
         # Create the internal node
         node = Node(
             feature_index=feature_index,
             threshold=threshold,
             left=left,
-            right=right
+            right=right,
+            value=majority_class,
+            samples=len(y),
+            impurity=self._gini(y) if self.criterion == "gini" else self._entropy(y)
         )
         
         return node
@@ -1023,3 +990,61 @@ class DecisionTree:
            predictions.append(self._predict_one(value))
         
         return predictions
+
+    def _compute_tree_stats(self):
+      self.n_nodes_ = 0
+      self.depth_ = 0
+  
+      # Count nodes and calculate tree depth
+      stack = [(self.root_, 0)]
+  
+      while stack:
+          node, depth = stack.pop()
+  
+          if node is None:
+              continue
+  
+          self.n_nodes_ += 1
+  
+          if depth > self.depth_:
+              self.depth_ = depth
+  
+          if not node.is_leaf():
+              stack.append((node.left, depth + 1))
+              stack.append((node.right, depth + 1))
+  
+      # Calculate feature importances
+      self.feature_importances_ = np.zeros(self.n_features_)
+  
+      def calculate_importance(node):
+          if node is None or node.is_leaf():
+              return
+  
+          left = node.left
+          right = node.right
+  
+          n = node.samples
+          n_left = left.samples
+          n_right = right.samples
+  
+          if n > 0:
+              decrease = (
+                  node.impurity
+                  - (n_left / n) * left.impurity
+                  - (n_right / n) * right.impurity
+              )
+  
+              self.feature_importances_[node.feature_index] += (
+                  (n / self.root_.samples) * decrease
+              )
+  
+          calculate_importance(left)
+          calculate_importance(right)
+  
+      calculate_importance(self.root_)
+  
+      total_importance = np.sum(self.feature_importances_)
+  
+      if total_importance > 0:
+          self.feature_importances_ /= total_importance               
+        
