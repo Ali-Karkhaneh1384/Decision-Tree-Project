@@ -955,7 +955,7 @@ class DecisionTree:
 
         # TODO
         node = self.root_
-        while(not node.is_leaf()):
+        while not node.is_leaf():
                 if x[node.feature_index] <= node.threshold:
                     node = node.left
                 else:
