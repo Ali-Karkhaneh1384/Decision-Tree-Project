@@ -385,33 +385,23 @@ class DecisionTree:
         if self._is_stopping_condition(X, y, depth):
             return self._create_leaf(y)
         
-        # Find the best feature and threshold
         best_split = self._find_best_split(X, y)
         
-        # If no valid split is found, create a leaf
         if best_split is None:
             return self._create_leaf(y)
         
         feature_index, threshold = best_split
         
-        # Split the dataset
         X_left, y_left, X_right, y_right = self._split(
             X, y, feature_index, threshold
         )
-        
-        # Build the left subtree
+           
         left = self._build_tree(X_left, y_left, depth + 1)
-        
-        # Build the right subtree
         right = self._build_tree(X_right, y_right, depth + 1)
-        
-        
-        # Calculate majority class of current node
+      
         values, counts = np.unique(y, return_counts=True)
         majority_class = values[np.argmax(counts)]
-       
-       
-        # Create the internal node
+            
         node = Node(
             feature_index=feature_index,
             threshold=threshold,
